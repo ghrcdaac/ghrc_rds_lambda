@@ -2,14 +2,15 @@ locals {
   default_tags = {
     Deployment = var.prefix
   }
+  lambda_package = "rds_lambda_package.zip"
 }
 
 resource "aws_lambda_function" "rds_lambda" {
   function_name = "${var.prefix}-rds-lambda"
-  source_code_hash = filebase64sha256("${path.module}/rds_package.zip")
-  handler = "task.lambda_function.handler"
+  source_code_hash = filebase64sha256("${path.module}/${local.lambda_package}")
+  handler = "task.lambda_handler.handler"
   runtime = "python3.8"
-  filename = "${path.module}/rds_package.zip"
+  filename = "${path.module}/${local.lambda_package}"
   role = var.cumulus_lambda_role_arn
   timeout = var.timeout
   memory_size = var.memory_size
