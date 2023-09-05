@@ -1,12 +1,12 @@
 locals {
   default_tags = {
-    Deployment = var.prefix
+    Deployment = var.stack_prefix
   }
   lambda_package = "rds_lambda_package.zip"
 }
 
 resource "aws_lambda_function" "rds_lambda" {
-  function_name = "${var.prefix}-rds-lambda"
+  function_name = "${var.stack_prefix}-rds-lambda"
   source_code_hash = filebase64sha256("${path.module}/${local.lambda_package}")
   handler = "task.lambda_handler.handler"
   runtime = "python3.8"
@@ -18,9 +18,10 @@ resource "aws_lambda_function" "rds_lambda" {
 
   environment {
     variables = merge({
-      bucket_name = var.s3_bucket_name
-      s3_key_prefix = var.s3_key_prefix
-      cumulus_credentials_arn = var.cumulus_user_credentials_secret_arn
+      BUCKET_NAME = var.s3_bucket_name
+      S3_KEY_PREFIX = var.s3_key_prefix
+      CUMULUS_CREDENTIALS_ARN = var.cumulus_user_credentials_secret_arn
+      CUMULUS_MESSAGE_ADAPTER_DIR = var.cumulus_message_adapter_dir
     }, var.env_variables)
   }
 
