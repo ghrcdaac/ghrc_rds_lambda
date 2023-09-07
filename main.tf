@@ -2,7 +2,7 @@ locals {
   default_tags = {
     Deployment = var.stack_prefix
   }
-  lambda_package = "rds_lambda_package.zip"
+  lambda_package = "ghrc_rds_lambda_package.zip"
 }
 
 resource "aws_lambda_function" "rds_lambda" {
