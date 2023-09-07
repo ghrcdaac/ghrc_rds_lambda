@@ -60,7 +60,7 @@ jobs:
         - name: Build a release
           run: |
             python --version
-            bash create_package.py
+            python create_package.py
             bash create_release.sh $SOURCE_TAG
           env:
             SOURCE_TAG: ${{ steps.tag_name.outputs.SOURCE_TAG }}
