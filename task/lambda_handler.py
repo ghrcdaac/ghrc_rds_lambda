@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 
@@ -12,10 +11,10 @@ if os.environ.get('CUMULUS_MESSAGE_ADAPTER_DIR'):
 
 def handler(event, context):
     if run_cumulus_task and not event.get('is_test', False):
-        print('cumulus_task')
+        print('Running cumulus task...')
         results = run_cumulus_task(main, event, context)
     else:
-        print('task')
+        print('Running main...')
         results = main(event, context)
 
     return results
