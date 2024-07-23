@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8' ]
+        python-version: ['3.10' ]
 
     steps:
       - uses: actions/checkout@v3
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8' ]
+        python-version: ['3.10' ]
     steps:
         - uses: actions/checkout@v3
         - name: Get tag version
@@ -60,7 +60,11 @@ jobs:
         - name: Build a release
           run: |
             python --version
+            pwd
+            ls
             python create_package.py
+            
+            find -name ghrc_ghrc_rds_lambda_package.zip
             bash create_release.sh $SOURCE_TAG
           env:
             SOURCE_TAG: ${{ steps.tag_name.outputs.SOURCE_TAG }}
