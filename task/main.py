@@ -60,6 +60,7 @@ def get_db_params():
     sm = boto3.client('secretsmanager')
     secrets_arn = os.getenv('CUMULUS_CREDENTIALS_ARN', None)
     db_init_kwargs = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
+    db_init_kwargs.pop('rejectUnauthorized', '')
     db_init_kwargs.update({'user': db_init_kwargs.pop('username')})
 
     return db_init_kwargs
