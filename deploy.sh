@@ -12,5 +12,5 @@ if [[  -n $AWS_PROFILE ]]; then
   aws lambda update-function-code \
   --profile "${AWS_PROFILE}" --region=us-west-2 \
   --function-name "${FUNCTION_NAME}" \
-  --zip-file fileb://rds_lambda_package.zip --publish
+  --zip-file fileb://ghrc_rds_lambda_package.zip --publish
 fi
