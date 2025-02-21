@@ -59,11 +59,17 @@ def build_query(records, where=None, columns=None, limit=100, **kwargs):
 def get_db_params():
     sm = boto3.client('secretsmanager')
     secrets_arn = os.getenv('CUMULUS_CREDENTIALS_ARN', None)
-    db_init_kwargs = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
-    db_init_kwargs.pop('rejectUnauthorized', '')
-    db_init_kwargs.update({'user': db_init_kwargs.pop('username')})
+    secrets = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
 
-    return db_init_kwargs
+    db_params = {}
+    for key in secrets.keys():
+        if key in ('username', 'user', 'password', 'database', 'host', 'port'):
+            new_key = key
+            if key == 'username':
+                new_key = 'user'
+            db_params.update({new_key: secrets.get(key)})
+
+    return db_params
 
 
 class UploadHandlerBase(ABC):
@@ -152,35 +158,41 @@ def get_upload_handler(total_columns, handler_args):
 
     return upload_handler
 
-
 def main(event, context):
     rds_config = event.get('rds_config')
-    query_dict = build_query(**rds_config)
     db_conn = psycopg2.connect(**get_db_params())
     curs = None
+    handler_args = {}
     try:
         db_conn.set_session(readonly=True)
         db_conn.commit()
         curs = db_conn.cursor()
 
-        # print(query_dict.get('query').as_string(curs))  # Uncomment when troubleshooting queries
-        curs.execute(query_dict.get('query'), query_dict.get('args'))
+        if str(rds_config.get('reindex', 'false')).lower() == 'true':
+            for table_name in ('granules', 'files', 'executions', 'async_operations', 'collections', 'granules_executions', 'knex_migrations', 'knex_migrations_lock', 'pdrs', 'providers', 'rules'):
+                print(f'Reindexing tagle: {table_name}')
+                curs.execute(f'reindex table {table_name}')
+            # pass
+        else:
+            query_dict = build_query(**rds_config)
+            # print(query_dict.get('query').as_string(curs))  # Uncomment when troubleshooting queries
+            curs.execute(query_dict.get('query'), query_dict.get('args'))
 
-        handler_args = {
-            'bucket': os.getenv('BUCKET_NAME'),
-            'key': f'{os.getenv("S3_KEY_PREFIX")}query_results_{time.time_ns()}.json'
-        }
+            handler_args = {
+                'bucket': os.getenv('BUCKET_NAME'),
+                'key': f'{os.getenv("S3_KEY_PREFIX")}query_results_{time.time_ns()}.json'
+            }
 
-        selected_columns = ([desc[0] for desc in curs.description])
-        upload_handler = get_upload_handler(len(selected_columns) * curs.rowcount, handler_args)
-        handler_args.update({'count': curs.rowcount})
+            selected_columns = ([desc[0] for desc in curs.description])
+            upload_handler = get_upload_handler(len(selected_columns) * curs.rowcount, handler_args)
+            handler_args.update({'count': curs.rowcount})
 
-        size = event.get('size', 10000)
-        for _ in range(math.ceil(curs.rowcount / size)):
-            for row in curs.fetchmany(size=size):
-                upload_handler.handle_row(row, selected_columns)
+            size = event.get('size', 10000)
+            for _ in range(math.ceil(curs.rowcount / size)):
+                for row in curs.fetchmany(size=size):
+                    upload_handler.handle_row(row, selected_columns)
 
-        upload_handler.complete_upload()
+            upload_handler.complete_upload()
         curs.close()
 
     finally:

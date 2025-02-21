@@ -6,11 +6,12 @@
 #  docker rm "${CID}" &&
 
 python create_package.py
+AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 echo "Deploying lambda..."
 if [[  -n $AWS_PROFILE ]]; then
   aws lambda update-function-code \
   --profile "${AWS_PROFILE}" --region=us-west-2 \
-  --function-name "${FUNCTION_NAME}" \
+  --function-name "arn:aws:lambda:us-west-2:${AWS_ACCOUNT_ID}:function:${STACK_PREFIX}-rds-lambda" \
   --zip-file fileb://ghrc_rds_lambda_package.zip --publish
 fi
