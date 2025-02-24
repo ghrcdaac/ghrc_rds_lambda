@@ -12,7 +12,7 @@ This lambda can be used by itself once deployed or it can be integrated into a w
 This is an example of a terraform module configuration block for the lambda:
 ```terraform
 module "ghrc_rds_lambda"  {
-  source      = "https://github.com/ghrcdaac/ghrc_rds_lambda/releases/download/v0.2.0/ghrc_rds_lambda.zip"
+  source      = "https://github.com/ghrcdaac/ghrc_rds_lambda/releases/download/<release_version>/ghrc_rds_lambda.zip"
   stack_prefix = var.prefix
   region       = var.region
   layers       = [aws_lambda_layer_version.cma-python.arn]
@@ -34,10 +34,8 @@ module "ghrc_rds_lambda"  {
 }
 ```
 
-### AWS CLI Deployment
-It is possible to deploy the lambda without terraform though it might be difficult to ensure the subnet IDs and the 
-security groups are set up properly. To build the zip file for the `--zip-file` lambda argument, clone the repo and run 
-`python create_package.py`.
+### Building and Deploying Lambda Package
+The `build_and_deploy.sh` script can be used to to locally build and deploy an updated lambda package once the terraform module has been deployed. Ensure that you have setup an `env.sh` with the required values. See the `env.sh.example` file.
 
 ## Querying
 The code imposes some restrictions on the type of query that can be built and run on the lambda. Firstly, the cursor
