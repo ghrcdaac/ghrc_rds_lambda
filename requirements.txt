@@ -1,3 +1,2 @@
-boto3==1.26.165
 cumulus_message_adapter_python==2.2.0
 psycopg2-binary==2.9.9

@@ -59,11 +59,17 @@ def build_query(records, where=None, columns=None, limit=100, **kwargs):
 def get_db_params():
     sm = boto3.client('secretsmanager')
     secrets_arn = os.getenv('CUMULUS_CREDENTIALS_ARN', None)
-    db_init_kwargs = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
-    db_init_kwargs.pop('rejectUnauthorized', '')
-    db_init_kwargs.update({'user': db_init_kwargs.pop('username')})
+    secrets = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
 
-    return db_init_kwargs
+    db_params = {'sslmode': 'disable'} # Will revisit when/if SSL becomes required
+    for key in secrets.keys():
+        if key in ('username', 'user', 'password', 'database', 'host', 'port'):
+            new_key = key
+            if key == 'username':
+                new_key = 'user'
+            db_params.update({new_key: secrets.get(key)})
+
+    return db_params
 
 
 class UploadHandlerBase(ABC):
@@ -152,17 +158,16 @@ def get_upload_handler(total_columns, handler_args):
 
     return upload_handler
 
-
 def main(event, context):
     rds_config = event.get('rds_config')
-    query_dict = build_query(**rds_config)
     db_conn = psycopg2.connect(**get_db_params())
     curs = None
+    handler_args = {}
     try:
         db_conn.set_session(readonly=True)
         db_conn.commit()
         curs = db_conn.cursor()
-
+        query_dict = build_query(**rds_config)
         # print(query_dict.get('query').as_string(curs))  # Uncomment when troubleshooting queries
         curs.execute(query_dict.get('query'), query_dict.get('args'))
 
