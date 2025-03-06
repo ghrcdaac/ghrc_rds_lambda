@@ -1,5 +1,6 @@
 
 async_operations_db_columns = (
+    'async_operation_id',
     'cumulus_id',
     'id',
     'description',
@@ -31,6 +32,7 @@ collections_db_columns = (
 )
 
 executions_db_columns = (
+    'execution',
     'cumulus_id',
     'arn',
     'async_operation_cumulus_id',
@@ -110,6 +112,7 @@ pdrs_db_columns = (
 
 providers_db_columns = (
     # 'cumulus_id',
+    'id',
     'name',
     'protocol',
     'host',

@@ -9,19 +9,6 @@ import boto3
 import psycopg2
 from psycopg2 import sql
 
-# CUMULUS_DB_COLUMNS = (
-#     'cumulus_id', 'granule_id', 'status', 'collection_cumulus_id', 'created_at', 'updated_at', 'published', 'duration',
-#     'time_to_archive', 'time_to_process', 'product_volume', 'error', 'cmr_link', 'pdr_cumulus_id',
-#     'provider_cumulus_id', 'beginning_date_time', 'ending_date_time', 'last_update_date_time',
-#     'processing_end_date_time', 'processing_start_date_time', 'production_date_time', 'query_fields', 'timestamp',
-#     'cumulus_id', 'name', 'version', 'sample_file_name', 'granule_id_validation_regex', 'granule_id_extraction_regex',
-#     'files', 'process', 'url_path', 'duplicate_handling', 'report_to_ems', 'ignore_files_config_for_discovery', 'meta',
-#     'tags', 'created_at', 'updated_at', 'collection_id'
-# )
-
-# CUMULUS_DB_TABLES = (
-#     'granules', 'collections', 'rules', 'files', 'granules_executions', 'executions', 'async_operations', 'providers', 'pdrs'
-# )
 
 def get_db_params():
     sm = boto3.client('secretsmanager')
@@ -141,7 +128,7 @@ def get_async_join(columns, where, right_table):
         collections_join = sql.SQL(
             '''
             LEFT JOIN (
-                SELECT cumulus_id, id
+                SELECT cumulus_id, id AS async_operation_id
                 FROM async_operations
             ) AS async_operations ON async_operations.cumulus_id={}
             '''
@@ -162,8 +149,6 @@ def get_collection_json_join(columns, where, right_table):
             ).format(sql.Identifier(right_table, 'collection_cumulus_id'))
 
     return collections_join
-
-
 
 def get_collection_id_join(columns, where, right_table):
     collections_join = sql.SQL('')
@@ -236,23 +221,9 @@ def build_granules_query(records, columns, where='', limit=-1):
     for get_join in [get_collection_id_join, get_executions_join, get_files_array_join, get_providers_join]:
        joins.append(get_join(columns, where, records))
 
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        {}
-        '''
-    ).format(
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(records),
-        sql.SQL(' ').join(joins),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
+    joins = sql.SQL(' ').join(joins)
 
-    return query
+    return joins
 
 
 def build_rules_query(records, columns=None, where=None, limit=-1):
@@ -260,140 +231,57 @@ def build_rules_query(records, columns=None, where=None, limit=-1):
     for get_join in [get_collection_json_join, get_providers_join]:
        joins.append(get_join(columns, where, records))
 
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        {}
-        '''
-    ).format(
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(records),
-        sql.SQL(' ').join(joins),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
+    joins = sql.SQL(' ').join(joins)
 
-    return query
-
-def build_collections_query(records, columns=None, where=None, limit=-1):
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        '''
-    ).format(
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(records),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
-
-    return query
+    return joins
 
 def build_executions_query(records, columns=None, where=None, limit=-1):
     joins = []
     for get_join in [get_async_join, get_collection_id_join, get_executions_join]:
        joins.append(get_join(columns, where, records))
 
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        {}
-        '''
-    ).format(
-        # sql.SQL(', ').join([sql.Identifier(column) for column in columns]) if columns else sql.SQL('*'),
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(records),
-        sql.SQL(' ').join(joins),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
+    joins = sql.SQL(' ').join(joins)
 
-    return query
-
-def build_providers_query(table, columns=None, where=None, limit=-1):
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        '''
-    ).format(
-        # sql.SQL(', ').join([sql.Identifier(column) for column in columns]) if columns else sql.SQL('*'),
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(table),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
-
-    return query
+    return joins
 
 def build_pdrs_query(records, columns=None, where=None, limit=-1):
     joins = []
     for get_join in [get_collection_id_join, get_providers_join, get_executions_join]:
        joins.append(get_join(columns, where, records))
 
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        {}
-        '''
-    ).format(
-        # sql.SQL(', ').join([sql.Identifier(column) for column in columns]) if columns else sql.SQL('*'),
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(records),
-        sql.SQL(' ').join(joins),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
+    joins = sql.SQL(' ').join(joins)
 
-    return query
-
-def build_async_query(table, columns=None, where=None, limit=-1):
-    query = sql.SQL(
-        '''
-        SELECT {}
-        FROM {}
-        {}
-        {}
-        '''
-    ).format(
-        # sql.SQL(', ').join([sql.Identifier(column) for column in columns]) if columns else sql.SQL('*'),
-        sql.SQL(columns if columns else '*'),
-        sql.Identifier(table),
-        build_where(where),
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
-    )
-
-    return query
+    return joins
 
 def build_query_new(records, columns=None, where=None, limit=0):
     if not columns:
         columns = '*'
 
-    switch = {
+    joins_switch = {
         'granules': build_granules_query,
         'rules': build_rules_query,
-        'collections': build_collections_query,
         'executions': build_executions_query,
-        'providers': build_providers_query,
-        'pdrs': build_pdrs_query,
-        'async_operations': build_async_query
+        'pdrs': build_pdrs_query
     }
 
-    return switch.get(records)(records, columns, where, limit)
+    query = sql.SQL(
+        '''
+        SELECT {}
+        FROM {}
+        {}
+        {}
+        {}
+        '''
+    ).format(
+        sql.SQL(columns if columns else '*'),
+        sql.Identifier(records),
+        joins_switch.get(records, sql.SQL(''))(records, columns, where),
+        build_where(where),
+        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit >= 0 else sql.SQL('')
+    )
+
+    return query
+    # return switch.get(records)(records, columns, where, limit)
 
 def main(event, context):
     rds_config = event.get('rds_config')
@@ -409,7 +297,7 @@ def main(event, context):
     with psycopg2.connect(**get_db_params()) as db_conn:
         with db_conn.cursor(name='rds-cursor') as curs:
             curs.itersize = event.get('size', 10000)
-            print(query.as_string(curs))  # Uncomment when troubleshooting queries
+            # print(query.as_string(curs))  # Uncomment when troubleshooting queries
             # print(curs.mogrify(query, vars))
             curs.execute(query=query)
 
