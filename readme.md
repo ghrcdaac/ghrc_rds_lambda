@@ -48,17 +48,19 @@ Below is an example AWS lambda test event that shows the format of the event tha
   "is_test": true,
   "rds_config": {
     "records": "",
-    "columns": [],
+    "columns": "",
     "where": "",
-    "limit": 0
+    "limit": -1
   }
 }
 ```
  - `rds_config`: Block required to contain the query items.
- - `records`: The Cumulus database table name to get records for.
- - `columns`: The columns to request from the database. This will default to `*` if nothing is provided.
- - `where`: A Postgresql compliant where clause.
- - `limit`: The number of records to return. 0 means return all records that match the query and will default to 100 if not provided.
+ - `records`: The Cumulus database table name to get records for (providers, collections, rules, granules, executions, async_operations, pdrs).
+ - `columns`: The columns to request from the database `"column_1, column_2"`. This will default to `*` if nothing is provided. 
+ - `where`: A Postgresql compliant where clause: 
+   - `"granule_id LIKE '%value' AND collection_id = 'value'"`
+   - `"collection_id='rssmif17d3d___7' and status IN('failed', 'queued', 'running') and published = true"`.
+ - `limit`: The number of records to return. `-1` means return all records that match the query and will default to 100 if not provided.
  - `is_test`: If true, the code will not be run as a `cumulus_task` and the input event will not go through the CMA.
 
 The `columns`, `where`, and `limit` keys are optional. 
