@@ -55,6 +55,8 @@ class MPUHandler(UploadHandlerBase):
     def upload_part(self, body_string):
         if not self.s3_parts:
             body_string = f'[{body_string}'
+        else:
+            body_string = f', {body_string}'
         part_number_dict = {'PartNumber': len(self.s3_parts) + 1}
         mpu_upload_dict = {**part_number_dict, **self.s3_mpu_dict}
         mpu_upload_dict.update({'Body': body_string.encode()})
