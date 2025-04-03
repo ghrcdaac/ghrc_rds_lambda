@@ -1,4 +1,5 @@
 
+
 async_operations_db_columns = (
     'async_operation_id',
     'cumulus_id',
@@ -11,6 +12,10 @@ async_operations_db_columns = (
     'created_at',
     'updated_at'
 )
+async_dict = {
+    'table': 'async_operations',
+    'columns': async_operations_db_columns
+}
 
 collections_db_columns = (
     'collection_id',
@@ -30,6 +35,10 @@ collections_db_columns = (
     'created_at',
     'updated_at'
 )
+collections_dict = {
+    'table': 'collections',
+    'columns': collections_db_columns
+}
 
 executions_db_columns = (
     'execution',
@@ -47,6 +56,10 @@ executions_db_columns = (
     'duration',
     'original_payload'
 )
+executions_dict = {
+    'table': 'executions',
+    'columns': executions_db_columns
+}
 
 files_db_columns = (
     'files',
@@ -64,7 +77,10 @@ files_db_columns = (
     'source',
     'type'
 )
-
+files_dict = {
+    'table': 'files',
+    'columns': files_db_columns
+}
 
 granules_db_columns = (
     # 'granules.cumulus_id',
@@ -90,6 +106,10 @@ granules_db_columns = (
     'processing_start_date_time',
     'collection_id'
 )
+granules_dict = {
+    'table': 'granules',
+    'columns': granules_db_columns
+}
 
 pdrs_db_columns = (
     # 'cumulus_id',
@@ -109,6 +129,10 @@ pdrs_db_columns = (
     'created_at',
     'updated_at'
 )
+pdrs_dict = {
+    'table': 'pdrs',
+    'columns': pdrs_db_columns
+}
 
 providers_db_columns = (
     # 'cumulus_id',
@@ -128,6 +152,10 @@ providers_db_columns = (
     'allowed_redirects',
     'max_download_time'
 )
+providers_dict = {
+    'table': 'providers',
+    'columns': providers_db_columns
+}
 
 rules_db_columns = (
     # 'cumulus_id',
@@ -146,6 +174,10 @@ rules_db_columns = (
     'tags',
     'queue_url'
 )
+rules_dict = {
+    'table': 'rules',
+    'columns': rules_db_columns
+}
 
 granule_model_fields = (
     'beginningDateTime',
@@ -173,6 +205,15 @@ granule_model_fields = (
     'timestamp',
     'updatedAt'
 )
+
+db_dict = {
+    'granules': granules_db_columns,
+    'collections': collections_db_columns,
+    'providers': providers_db_columns,
+    'pdrs': pdrs_db_columns,
+    'files': files_db_columns,
+    'executions': executions_db_columns,
+}
 
 def api_field_names_to_db_column_names(field_names):
     db_column_names = []
@@ -231,10 +272,10 @@ def test_column_api():
     keys = db_column_names_to_api_keys(column_names)
     print(keys)
 
-def parse_where_clause(query_str):
+def parse_where_clause(where):
     parsed_query = ''
     query_term = ''
-    for character in query_str:
+    for character in where:
         if character.isalnum():
             query_term = f'{query_term}{character}'
         else:
@@ -253,7 +294,6 @@ def test_parse_where_clause():
     query = 'SELECT * where granules.granuleId LIKE someValue AND collectionId=anotherValue'
     parsed_query = parse_where_clause(query)
     print(parsed_query)
-
 
 if __name__ == '__main__':
     pass
