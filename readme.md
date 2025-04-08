@@ -58,7 +58,7 @@ Below is an example AWS lambda test event that shows the format of the event tha
  - `rds_config`: Block required to contain the query items.
  - `records`: The Cumulus database table name to get records for (providers, collections, rules, granules, executions, async_operations, pdrs).
  - `columns`: The columns to request from the database `"column_1, column_2"`. This will default to `*` if nothing is provided. 
- - `<table>_where`: A Postgresql compliant where clause can be provided when querying for granules. A specific table prefix must be provided (ganules, providers, collections, pdrs, files, executions). More than one can be supplied: https://nasa.github.io/cumulus/docs/architecture/#postgresql-database-schema-diagram
+ - `<table>_where`: A Postgresql compliant where clause can be provided when querying for granules. A specific table prefix must be provided (granules, providers, collections, pdrs, files, executions). More than one can be supplied: https://nasa.github.io/cumulus/docs/architecture/#postgresql-database-schema-diagram
    - `"granules_where": ""`
    - `"files_where": ""`
  - `"where"`: A Postgresql compliant where clause to be provided when querying for non-granule records (collections, providers, etc.)
