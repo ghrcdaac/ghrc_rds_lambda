@@ -48,17 +48,23 @@ Below is an example AWS lambda test event that shows the format of the event tha
   "is_test": true,
   "rds_config": {
     "records": "",
-    "columns": [],
+    "columns": "",
+    "<table>_where": "",
     "where": "",
-    "limit": 0
+    "limit": 10
   }
 }
 ```
  - `rds_config`: Block required to contain the query items.
- - `records`: The Cumulus database table name to get records for.
- - `columns`: The columns to request from the database. This will default to `*` if nothing is provided.
- - `where`: A Postgresql compliant where clause.
- - `limit`: The number of records to return. 0 means return all records that match the query and will default to 100 if not provided.
+ - `records`: The Cumulus database table name to get records for (providers, collections, rules, granules, executions, async_operations, pdrs).
+ - `columns`: The columns to request from the database `"column_1, column_2"`. This will default to `*` if nothing is provided. 
+ - `<table>_where`: A Postgresql compliant where clause can be provided when querying for granules. A specific table prefix must be provided (granules, providers, collections, pdrs, files, executions). More than one can be supplied: https://nasa.github.io/cumulus/docs/architecture/#postgresql-database-schema-diagram
+   - `"granules_where": ""`
+   - `"files_where": ""`
+ - `"where"`: A Postgresql compliant where clause to be provided when querying for non-granule records (collections, providers, etc.)
+   - `"where": "provider_name LIKE '%value'"`
+   - `"where": "collection_name='rssmif17d3d___7'"`.
+ - `limit`: The number of records to return. A value should be supplied sufficient for the expected results. A default of 10 will be used if not supplied.
  - `is_test`: If true, the code will not be run as a `cumulus_task` and the input event will not go through the CMA.
 
 The `columns`, `where`, and `limit` keys are optional. 

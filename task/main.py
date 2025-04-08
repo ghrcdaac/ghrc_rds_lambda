@@ -1,59 +1,15 @@
 import datetime
 import json
-import math
 import os
-import re
 import time
 from abc import ABC
+import traceback
+from task.query_builders import build_query_case_1, build_query_case_2
+from task.api_model import *
 
 import boto3
 import psycopg2
 from psycopg2 import sql
-
-CUMULUS_DB_COLUMNS = {
-    'cumulus_id', 'granule_id', 'status', 'collection_cumulus_id', 'created_at', 'updated_at', 'published', 'duration',
-    'time_to_archive', 'time_to_process', 'product_volume', 'error', 'cmr_link', 'pdr_cumulus_id',
-    'provider_cumulus_id', 'beginning_date_time', 'ending_date_time', 'last_update_date_time',
-    'processing_end_date_time', 'processing_start_date_time', 'production_date_time', 'query_fields', 'timestamp',
-    'cumulus_id', 'name', 'version', 'sample_file_name', 'granule_id_validation_regex', 'granule_id_extraction_regex',
-    'files', 'process', 'url_path', 'duplicate_handling', 'report_to_ems', 'ignore_files_config_for_discovery', 'meta',
-    'tags', 'created_at', 'updated_at'
-}
-
-
-def build_query(records, where=None, columns=None, limit=100, **kwargs):
-    keywords = {'and', 'or', 'not', 'in', 'like'}
-
-    query_args = []
-    if where:
-        res = re.findall(r'[\w+\%]+', where)
-        for word in res:
-            lower_word = word.lower()
-            if lower_word not in CUMULUS_DB_COLUMNS and lower_word not in keywords:
-                where = where.replace(word, '%s', 1)
-                query_args.append(word)
-        sql_where = sql.SQL('WHERE {}').format(sql.SQL(where))
-    else:
-        sql_where = sql.SQL('')
-
-    # TODO: Remove once we are sure the user input doesn't need to be escaped when a literal % is present.
-    #  As of 08/31/2023 no issue has been discovered
-    # if '%' in where:
-    #     where = where + ' ESCAPE \'\''
-
-    query = sql.SQL(
-        'SELECT {} FROM {} '
-        'JOIN collections ON granules.collection_cumulus_id=collections.cumulus_id '
-        '{} '
-        '{}'
-    ).format(
-        sql.SQL(', ').join([sql.Identifier(column) for column in columns]) if columns else sql.SQL('*'),
-        sql.Identifier(records),
-        sql_where,
-        sql.SQL('LIMIT {}').format(sql.SQL(str(limit))) if limit else sql.SQL('')
-    )
-
-    return {'query': query, 'args': query_args}
 
 
 def get_db_params():
@@ -79,17 +35,6 @@ class UploadHandlerBase(ABC):
     def complete_upload(self):
         raise NotImplementedError
 
-    @staticmethod
-    def convert_tuple_to_json(row, selected_columns):
-        record_dict = {}
-        for value, index in zip(row, range(len(row))):
-            if isinstance(value, datetime.datetime):
-                value = str(value)
-            elif isinstance(value, bool):
-                value = json.dumps(value)
-            record_dict.update({selected_columns[index]: value})
-        return json.dumps(record_dict)
-
 
 class MPUHandler(UploadHandlerBase):
     def __init__(self, bucket, key):
@@ -102,9 +47,9 @@ class MPUHandler(UploadHandlerBase):
         self.s3_part_size = 20971520  # 20MBit
         self.rows = []
 
-    def handle_row(self, row, selected_columns):
-        self.rows.append(self.convert_tuple_to_json(row, selected_columns))
-        column_count = len(self.rows) * len(selected_columns)
+    def handle_row(self, row, column_description):
+        self.rows.append(convert_tuple_to_json(row, column_description))
+        column_count = len(self.rows) * len(column_description)
         if column_count >= 360000:
             self.upload_part(f'{",".join(self.rows)}')
             self.rows.clear()
@@ -112,6 +57,8 @@ class MPUHandler(UploadHandlerBase):
     def upload_part(self, body_string):
         if not self.s3_parts:
             body_string = f'[{body_string}'
+        else:
+            body_string = f', {body_string}'
         part_number_dict = {'PartNumber': len(self.s3_parts) + 1}
         mpu_upload_dict = {**part_number_dict, **self.s3_mpu_dict}
         mpu_upload_dict.update({'Body': body_string.encode()})
@@ -131,6 +78,19 @@ class MPUHandler(UploadHandlerBase):
         }
         return self.s3_client.complete_multipart_upload(**complete_mpu_dict)
 
+def convert_tuple_to_json(row, selected_columns):
+        # print(f'selected_columns: {selected_columns}')
+        record_dict = {}
+        for value, index in zip(row, range(len(row))):
+            if isinstance(value, datetime.datetime):
+                value = str(value)
+            elif isinstance(value, bool):
+                value = json.dumps(value)
+
+            # print(f'selected_columns[index]: {selected_columns[index]}')
+            record_dict.update({selected_columns[index].name: value})
+        return json.dumps(record_dict)
+
 
 class UploadHandler(UploadHandlerBase):
     def __init__(self, bucket, key):
@@ -138,7 +98,7 @@ class UploadHandler(UploadHandlerBase):
         self.rows = []
 
     def handle_row(self, row, selected_columns):
-        self.rows.append(self.convert_tuple_to_json(row, selected_columns))
+        self.rows.append(convert_tuple_to_json(row, selected_columns))
 
     def complete_upload(self):
         s3_client = boto3.client('s3')
@@ -158,41 +118,252 @@ def get_upload_handler(total_columns, handler_args):
 
     return upload_handler
 
-def main(event, context):
-    rds_config = event.get('rds_config')
-    db_conn = psycopg2.connect(**get_db_params())
-    curs = None
-    handler_args = {}
-    try:
-        db_conn.set_session(readonly=True)
-        db_conn.commit()
-        curs = db_conn.cursor()
-        query_dict = build_query(**rds_config)
-        # print(query_dict.get('query').as_string(curs))  # Uncomment when troubleshooting queries
-        curs.execute(query_dict.get('query'), query_dict.get('args'))
+def join_check(selected_columns, where, table_columns):
+    ret = False
+    if selected_columns == '*' or any([column in table_columns for column in selected_columns.replace(' ', '').split(',')]):
+        ret = True
+    elif any([column in where for column in table_columns]):
+        ret = True
+    return ret
 
+def get_limit_sql(limit):
+    limit_sql = sql.SQL('')
+    if limit >= 0:
+        limit_sql = sql.SQL(
+            """
+            LIMIT {}
+            """
+        ).format(sql.SQL(str(limit)))
+
+    return limit_sql
+
+def get_async_join(columns, where, right_table, limit):
+    collections_join = sql.SQL('')
+    if join_check(columns, where, async_operations_db_columns):
+        collections_join = sql.SQL(
+            '''
+            LEFT JOIN (
+                SELECT cumulus_id, id AS async_operation_id
+                FROM async_operations
+                {}
+            ) AS async_operations ON async_operations.cumulus_id={}
+            '''
+            ).format(get_limit_sql(limit), sql.Identifier(right_table, 'async_operation_cumulus_id'))
+
+    return collections_join
+
+def get_collection_json_join(columns, where, right_table, limit):
+    collections_join = sql.SQL('')
+    if join_check(columns, where, collections_db_columns):
+        collections_join = sql.SQL(
+            '''
+            JOIN (
+            SELECT cumulus_id, json_build_object('collection', json_build_object('name', name, 'version', version))
+            FROM collections
+            {}
+            ) AS GC ON GC.cumulus_id={}
+            '''
+            ).format(get_limit_sql(limit), sql.Identifier(right_table, 'collection_cumulus_id'))
+
+    return collections_join
+
+def get_collection_id_join(columns, where, right_table, limit):
+    collections_join = sql.SQL('')
+    if join_check(columns, where, collections_db_columns):
+        collections_join = sql.SQL(
+            '''
+            JOIN (
+                SELECT cumulus_id, concat(collections.name, '___', collections.version) AS collection_id
+                FROM collections
+                {}
+            ) AS GC ON GC.cumulus_id={}
+            '''
+            ).format(get_limit_sql(limit), sql.Identifier(right_table, 'collection_cumulus_id'))
+
+    return collections_join
+
+def get_executions_join(columns, where, right_table, limit):
+    executions_join = sql.SQL('')
+    if join_check(columns, where, executions_db_columns):
+        executions_join = sql.SQL(
+        '''
+        LEFT JOIN (
+          SELECT DISTINCT ON (granule_cumulus_id) granule_cumulus_id, url AS execution
+          FROM executions
+          JOIN granules_executions ON executions.cumulus_id=granules_executions.execution_cumulus_id
+          ORDER BY granule_cumulus_id, executions.timestamp
+          {}
+        ) AS execution_arns ON execution_arns.granule_cumulus_id={}
+        '''
+    ).format(get_limit_sql(limit), sql.Identifier(right_table, 'cumulus_id'))
+
+    return executions_join
+
+def get_files_array_join(columns, where, right_table, limit):
+    files_join = sql.SQL('')
+    if join_check(columns, where, files_db_columns):
+        files_join = sql.SQL(
+        '''
+        LEFT JOIN (
+          SELECT granule_cumulus_id, json_agg(files) AS files
+          FROM files
+          GROUP BY granule_cumulus_id
+          {}
+        ) AS granule_files on granule_files.granule_cumulus_id={}
+        '''
+    ).format(get_limit_sql(limit), sql.Identifier(right_table, 'cumulus_id'))
+
+    return files_join
+
+def get_providers_join(columns, where, right_table, limit):
+    providers_join = sql.SQL('')
+    if join_check(columns, where, providers_db_columns):
+        providers_join = sql.SQL(
+        '''
+        LEFT JOIN (
+          SELECT name AS provider, providers.cumulus_id
+          FROM providers
+          {}
+        ) AS provider_names ON provider_names.cumulus_id={}
+        '''
+    ).format(get_limit_sql(limit), sql.Identifier(right_table, 'provider_cumulus_id'))
+    
+    return providers_join
+
+def build_where(where=''):
+    sql_where = sql.SQL('')
+    if where:
+        sql_where = sql.SQL('WHERE {}').format(sql.SQL(where))
+
+    return sql_where
+
+def build_granules_query(records, columns, where='', limit=-1):
+    joins = []
+    for get_join in [get_collection_id_join, get_executions_join, get_files_array_join, get_providers_join]:
+       joins.append(get_join(columns, where, records, limit))
+
+    joins = sql.SQL(' ').join(joins)
+
+    return joins
+
+
+def build_rules_query(records, columns=None, where=None, limit=-1):
+    joins = []
+    for get_join in [get_collection_json_join, get_providers_join]:
+       joins.append(get_join(columns, where, records, limit))
+
+    joins = sql.SQL(' ').join(joins)
+
+    return joins
+
+def build_executions_query(records, columns=None, where=None, limit=-1):
+    joins = []
+    for get_join in [get_async_join, get_collection_id_join, get_executions_join]:
+       joins.append(get_join(columns, where, records, limit))
+
+    joins = sql.SQL(' ').join(joins)
+
+    return joins
+
+def build_pdrs_query(records, columns=None, where=None, limit=-1):
+    joins = []
+    for get_join in [get_async_join, get_collection_id_join, get_executions_join]:
+       joins.append(get_join(columns, where, records, limit))
+
+    joins = sql.SQL(' ').join(joins)
+
+    return joins
+
+def get_empty_sql_object(records, columns=None, where=None, limit=-1):
+    return sql.SQL('')
+
+def build_query_new(records, columns=None, where=None, limit=0, **rds_config):
+    if not columns:
+        columns = '*'
+
+    joins_switch = {
+        'granules': build_granules_query,
+        'rules': build_rules_query,
+        'executions': build_executions_query,
+        'pdrs': build_pdrs_query
+    }
+
+    query = sql.SQL(
+        '''
+        SELECT {}
+        FROM {}
+        {}
+        {}
+        {}
+        '''
+    ).format(
+        sql.SQL(columns if columns else '*'),
+        sql.Identifier(records),
+        joins_switch.get(records, get_empty_sql_object)(records, columns, where, limit),
+        build_where(where),
+        get_limit_sql(limit)
+    )
+
+    return query
+
+def temp_query_selection(records, **rds_config):
+    query = ''
+    if records == 'granules':
+        if any(where in rds_config for where in ['granules_where', 'collections_where', 'providers_where', 'pdrs_where']):
+            print('CASE 1')
+            query = build_query_case_1(**rds_config)
+        else:
+            print('CASE 2')
+            query = build_query_case_2(**rds_config)
+        query = sql.SQL(query)
+    else:
+        query = build_query_new(records, **rds_config)
+
+    return query
+
+
+def main(event, context):
+    handler_args = {}
+    print_query = ''
+    try:
+        rds_config = event.get('rds_config')
+        print(rds_config)
         handler_args = {
             'bucket': os.getenv('BUCKET_NAME'),
             'key': f'{os.getenv("S3_KEY_PREFIX")}query_results_{time.time_ns()}.json'
         }
 
-        selected_columns = ([desc[0] for desc in curs.description])
-        upload_handler = get_upload_handler(len(selected_columns) * curs.rowcount, handler_args)
-        handler_args.update({'count': curs.rowcount})
+        client = boto3.client('s3')
+        client.put_object(Bucket=handler_args['bucket'], Key=handler_args['key'], Body=b'[]')
+        query = temp_query_selection(**rds_config)
+        with psycopg2.connect(**get_db_params()) as db_conn:
+            with db_conn.cursor(name='rds-cursor') as curs:
+                curs.itersize = event.get('size', 10000)
 
-        size = event.get('size', 10000)
-        for _ in range(math.ceil(curs.rowcount / size)):
-            for row in curs.fetchmany(size=size):
-                upload_handler.handle_row(row, selected_columns)
+                print_query = '\r'.join(query.as_string(curs).replace('\n', '\r').split('\r'))
+                # print(print_query)  # Uncomment when troubleshooting queries
+                # print(curs.mogrify(query, vars))
+                curs.execute(query=query)
 
-        upload_handler.complete_upload()
-        curs.close()
+                upload_handler = MPUHandler(**handler_args)
+                rowcount = 0
+                for row in curs:
+                    upload_handler.handle_row(row, curs.description)
+                    rowcount += 1
 
-    finally:
-        if curs and not curs.closed:
-            curs.close()
-        db_conn.close()
+                upload_handler.complete_upload()
 
+                handler_args.update({
+                    'query': print_query,
+                    'count': rowcount,
+                    'records': rds_config.get('records')
+                })
+    except Exception as e:
+        print(e)
+        stack_trace = traceback.format_exc()
+        handler_args.update({'exception': repr(e), 'stack_trace': stack_trace})
+
+    print(handler_args)
     return handler_args
 
 
