@@ -259,7 +259,7 @@ def build_rules_query(records, columns=None, where=None, limit=-1):
 def build_executions_query(records, columns=None, where=None, limit=-1):
     joins = []
     for get_join in [get_async_join, get_collection_id_join, get_executions_join]:
-       joins.append(get_join(columns, where, records))
+       joins.append(get_join(columns, where, records, limit))
 
     joins = sql.SQL(' ').join(joins)
 
