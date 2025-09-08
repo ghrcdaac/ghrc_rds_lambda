@@ -17,7 +17,7 @@ def get_db_params():
     secrets = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
 
     query_timeout_offset = 1000
-    statement_timeout_ms = int(os.getenv("QUERY_TIMEOUT", 900)) * 1000 - query_timeout_offset
+    statement_timeout_ms = int(os.getenv("QUERY_TIMEOUT")) * 1000 - query_timeout_offset
     db_params = {
         'sslmode': 'disable', # Will revisit when/if SSL becomes required
         'options': f'-c statement_timeout={statement_timeout_ms}'
