@@ -22,6 +22,7 @@ resource "aws_lambda_function" "rds_lambda" {
       S3_KEY_PREFIX = var.s3_key_prefix
       CUMULUS_CREDENTIALS_ARN = var.cumulus_user_credentials_secret_arn
       CUMULUS_MESSAGE_ADAPTER_DIR = var.cumulus_message_adapter_dir
+      QUERY_TIMEOUT = var.timeout
     }, var.env_variables)
   }
 
