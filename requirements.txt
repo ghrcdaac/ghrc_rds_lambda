@@ -1,2 +1,2 @@
-cumulus_message_adapter_python==2.2.0
-psycopg2-binary==2.9.9
+cumulus_message_adapter_python==2.4.0
+psycopg2-binary==2.9.11

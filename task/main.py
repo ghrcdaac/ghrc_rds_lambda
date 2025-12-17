@@ -12,7 +12,7 @@ import psycopg2
 from psycopg2 import sql
 
 def get_db_params():
-    sm = boto3.client('secretsmanager')
+    sm = boto3.client(service_name='secretsmanager', region_name='us-west-2')
     secrets_arn = os.getenv('CUMULUS_CREDENTIALS_ARN', None)
     secrets = json.loads(sm.get_secret_value(SecretId=secrets_arn).get('SecretString'))
 

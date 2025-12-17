@@ -1,4 +1,4 @@
-FROM amazon/aws-lambda-python:3.10
+FROM amazon/aws-lambda-python:3.12
 
 RUN yum -y update
 RUN yum -y install zip
