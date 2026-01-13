@@ -9,7 +9,7 @@ resource "aws_lambda_function" "rds_lambda" {
   function_name = "${var.stack_prefix}-rds-lambda"
   source_code_hash = filebase64sha256("${path.module}/${local.lambda_package}")
   handler = "task.lambda_handler.handler"
-  runtime = "python3.10"
+  runtime = "python3.12"
   filename = "${path.module}/${local.lambda_package}"
   role = var.cumulus_lambda_role_arn
   timeout = var.timeout
