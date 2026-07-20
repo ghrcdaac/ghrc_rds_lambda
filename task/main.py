@@ -162,7 +162,6 @@ class MPUHandler(UploadHandlerBase):
             "output_mode": "multipart_s3",
             "bucket": self.s3_mpu_dict["Bucket"],
             "key": self.s3_mpu_dict["Key"],
-            "etag": s3_response.get("ETag"),
         }
 
 
@@ -635,7 +634,6 @@ def main(event: dict[str, Any], _context) -> dict[str, Any]:
             handler_args.update(output_result)
 
             handler_args.update({
-                "query": print_query,
                 "count": rowcount,
                 "records": rds_config.get("records"),
             })
