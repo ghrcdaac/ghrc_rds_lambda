@@ -1,7 +1,7 @@
-FROM amazon/aws-lambda-python:3.12
+FROM public.ecr.aws/lambda/python:3.12
 
-RUN yum -y update
-RUN yum -y install zip
+RUN dnf -y install zip \
+    && dnf clean all
 
 ENV package_dir=/rds_lambda/
 RUN mkdir ${package_dir}

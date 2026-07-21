@@ -1,0 +1,2 @@
+# Store and check out text files with Unix LF line endings.
+* text=auto eol=lf
